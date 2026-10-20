@@ -91,6 +91,19 @@ class RepairRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class KnowledgeDocument(Base):
+    __tablename__ = "knowledge_documents"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    domain: Mapped[str] = mapped_column(String(40), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    body: Mapped[str] = mapped_column(Text)
+    keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    version: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(20), default="published")
+    effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class QCReport(Base):
     __tablename__ = "qc_reports"
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
@@ -117,14 +130,15 @@ def init_db() -> None:
         os.makedirs("data", exist_ok=True)
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
-        if db.get(User, "user"):
-            return
-        db.add_all([
-            User(id="user", name="张伟", role="employee", department="产品部"),
-            User(id="agent", name="李娜", role="agent", department="共享服务中心"),
-            User(id="qc", name="周雯", role="qc", department="服务质量组"),
-            User(id="admin", name="陈建国", role="admin", department="系统管理组"),
-            Reimbursement(id="BX-2026-1023", owner_id="user", title="上海出差住宿报销", amount_yuan=1280, status="审批中", current_step="财务复核", next_action="预计由财务复核后进入付款环节"),
-            Reimbursement(id="BX-2026-1008", owner_id="user", title="客户拜访交通报销", amount_yuan=186, status="待补充材料", current_step="票据核验", next_action="请补充电子发票原件"),
-        ])
+        if not db.get(User, "user"):
+            db.add_all([
+                User(id="user", name="张伟", role="employee", department="产品部"),
+                User(id="agent", name="李娜", role="agent", department="共享服务中心"),
+                User(id="qc", name="周雯", role="qc", department="服务质量组"),
+                User(id="admin", name="陈建国", role="admin", department="系统管理组"),
+                Reimbursement(id="BX-2026-1023", owner_id="user", title="上海出差住宿报销", amount_yuan=1280, status="审批中", current_step="财务复核", next_action="预计由财务复核后进入付款环节"),
+                Reimbursement(id="BX-2026-1008", owner_id="user", title="客户拜访交通报销", amount_yuan=186, status="待补充材料", current_step="票据核验", next_action="请补充电子发票原件"),
+            ])
+        from apps.api.knowledge import seed_documents
+        seed_documents(db)
         db.commit()

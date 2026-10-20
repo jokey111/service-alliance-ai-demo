@@ -15,6 +15,24 @@ def main() -> None:
     employee = login("user")
     agent = login("agent")
     qc = login("qc")
+    admin = login("admin")
+
+    docs = client.get("/api/knowledge-documents", headers=admin)
+    assert docs.status_code == 200, docs.text
+    docs = docs.json()
+    assert len([doc for doc in docs if doc["active"]]) == 9, docs
+    assert not next(doc for doc in docs if doc["id"] == "KB-FIN-BX-OLD")["active"]
+    knowledge = client.post("/api/chat", headers=employee, json={"text": "年假怎么申请？"}).json()
+    assert knowledge["status"] == "ok", knowledge
+    assert knowledge["citations"][0]["id"] == "KB-HR-001", knowledge
+    history = client.get("/api/conversations/" + knowledge["conversation_id"], headers=employee).json()
+    assert history["messages"][-1]["result"]["evidence"]["passages"][0]["id"] == "KB-HR-001"
+    negative = client.post("/api/chat", headers=employee, json={"text": "先别查报销，只告诉我申请流程"}).json()
+    assert negative["citations"][0]["id"] == "KB-FIN-BX-001", negative
+    assert all(step.get("kind") != "mcp_call" for step in client.get("/api/traces/" + negative["trace_id"], headers=employee).json()["steps"])
+    eval_run = client.post("/api/evals/run", headers=admin)
+    assert eval_run.status_code == 200, eval_run.text
+    assert eval_run.json()["passed"] == eval_run.json()["total"] == 10, eval_run.text
 
     first = client.post("/api/chat", headers=employee, json={"text": "我的报销进度到哪了"})
     assert first.status_code == 200, first.text
@@ -59,7 +77,7 @@ def main() -> None:
     assert analysis.status_code == 200, analysis.text
     assert analysis.json()["metrics"]["ticket_count"] >= 1
     assert "不能推断" in analysis.json()["limitation"]
-    print("PASS: reimbursement MCP, ownership, IT repair idempotency, handoff, ticket, QC, QC analysis")
+    print("PASS: knowledge retrieval/expiry, evals, reimbursement MCP, ownership, IT repair idempotency, handoff, ticket, QC, QC analysis")
 
 
 if __name__ == "__main__":

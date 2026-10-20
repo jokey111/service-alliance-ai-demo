@@ -1,0 +1,45 @@
+name: demo-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install backend dependencies
+        run: python -m pip install -r apps/api/requirements.txt
+      - name: Build frontend
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
+      - name: Validate Compose config
+        run: docker compose config --quiet
+      - name: Check model route contract
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Start local API and MCP
+        run: |
+          python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000 > /tmp/service-api.log 2>&1 &
+          python -m apps.business_mcp.server > /tmp/service-mcp.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null && curl -sS -o /dev/null http://127.0.0.1:8011/mcp; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/service-api.log
+          cat /tmp/service-mcp.log
+          exit 1
+      - name: Run end-to-end smoke test
+        run: python tests/smoke.py
