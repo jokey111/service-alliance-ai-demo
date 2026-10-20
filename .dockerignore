@@ -1,0 +1,16 @@
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+.git
+data/demo.db
+demo
+课程内容
+腾讯智能客服ppt课件
+腾讯智能客服纪要
+产品架构图
+评测
+*.pptx
+*.docx
+*.png

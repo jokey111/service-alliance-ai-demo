@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: service_alliance
+      POSTGRES_USER: service_alliance
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-demo-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U service_alliance -d service_alliance"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql+psycopg://service_alliance:${POSTGRES_PASSWORD:-local-demo-only}@db:5432/service_alliance
+      MCP_URL: http://mcp:8011/mcp
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      ZHIPU_BASE_URL: ${ZHIPU_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      ZHIPU_CHAT_MODEL: ${ZHIPU_CHAT_MODEL:-glm-5.3-flash}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.api
+    command: ["python", "-m", "apps.business_mcp.server"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://service_alliance:${POSTGRES_PASSWORD:-local-demo-only}@db:5432/service_alliance
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.web
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
