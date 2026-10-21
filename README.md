@@ -67,7 +67,7 @@ cd apps\web; npm run build
 
 准备一台安装 Docker Compose 的 Linux 主机、解析到该主机的域名，以及**智谱标准模型 API Key**。Ubuntu 主机上的 Docker Engine 和 Compose 插件安装步骤以 [Docker 官方文档](https://docs.docker.com/engine/install/ubuntu/) 为准：
 
-1. 将代码复制到主机，执行 `cp .env.example .env`，设置 `SITE_ADDRESS=你的域名`、强随机字母数字 `POSTGRES_PASSWORD`、`ZHIPU_API_KEY`。`POSTGRES_PASSWORD` 不可留空，建议仅使用字母数字，避免数据库 URL 中的特殊字符转义问题。
+1. 将代码复制到主机，执行 `cp .env.example .env`，设置 `SITE_ADDRESS=你的域名`、强随机字母数字 `POSTGRES_PASSWORD`、`ZHIPU_API_KEY`。`POSTGRES_PASSWORD` 不可留空，建议仅使用字母数字，避免数据库 URL 中的特殊字符转义问题。首次部署的分步操作参见 [腾讯云 Ubuntu 部署指南](docs/deploy-tencent-lighthouse.md)。
 2. 在防火墙放行 80/443；数据库、API、MCP 无主机端口映射。
 3. 执行 `docker compose up -d --build`。Caddy 根据域名申请并续期 HTTPS 证书。
 4. 检查 `https://你的域名/api/health` 的 `model_configured` 为 `true`，再按下方演示脚本走一遍全链路。
