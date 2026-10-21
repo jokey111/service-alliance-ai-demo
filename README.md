@@ -89,6 +89,5 @@ cd apps\web; npm run build
 
 ## 技术与产品说明
 
-- [完整设计方案](12345客服联盟_FDE求职Demo重设计方案.md) 记录目标架构和后续路线；其中一些目标能力尚未落地，以本 README 的“当前可运行能力”为准。
 - 智谱官方对 Coding Plan Key 的使用范围有限制，且与标准模型 API Key 分开管理。公网服务应使用标准 API Key，并只放在服务器环境变量中，不提交到 GitHub：[Coding Plan 使用说明](https://docs.bigmodel.cn/cn/coding-plan/usage-notes)、[API Key 管理说明](https://docs.bigmodel.cn/cn/coding-plan/notice/api-key-management)。
 - 本仓库根目录原先还有 PRD、课件、原静态 Demo 等工作资料；`.gitignore` 排除这些材料。公开前请再次核对 `git status`，只提交本项目代码、合成数据说明与设计文档。
