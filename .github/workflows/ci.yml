@@ -25,6 +25,8 @@ jobs:
           npm ci
           npm run build
       - name: Validate Compose config
+        env:
+          POSTGRES_PASSWORD: ci-demo-only
         run: docker compose config --quiet
       - name: Check model route contract
         run: python -m unittest discover -s tests -p 'test_*.py'

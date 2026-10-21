@@ -30,7 +30,7 @@
 ```
 
 MCP 是独立进程。它不暴露公网端口。业务数据由服务端登录身份限定；模型只能提议意图，不能指定任意员工或改写工具返回的状态。
-模型调用默认限制为每分钟 12 次（单 API 进程）；超过限额时路由和知识回答回退到确定性路径。公网部署还应通过云平台设置费用告警。
+模型调用默认限制为每分钟 12 次、滚动 24 小时 100 次（单 API 进程）；超过限额时路由和知识回答回退到确定性路径。进程重启会重置内存中的计数，公网部署还应通过模型平台设置费用上限或告警。
 
 ## 本地运行（Windows PowerShell）
 
@@ -65,12 +65,14 @@ cd apps\web; npm run build
 
 ## 公网部署
 
-准备一台安装 Docker Compose 的 Linux 主机、解析到该主机的域名，以及**智谱标准模型 API Key**：
+准备一台安装 Docker Compose 的 Linux 主机、解析到该主机的域名，以及**智谱标准模型 API Key**。Ubuntu 主机上的 Docker Engine 和 Compose 插件安装步骤以 [Docker 官方文档](https://docs.docker.com/engine/install/ubuntu/) 为准：
 
-1. 将代码复制到主机，执行 `cp .env.example .env`，设置 `SITE_ADDRESS=你的域名`、强随机字母数字 `POSTGRES_PASSWORD`、`ZHIPU_API_KEY`。
+1. 将代码复制到主机，执行 `cp .env.example .env`，设置 `SITE_ADDRESS=你的域名`、强随机字母数字 `POSTGRES_PASSWORD`、`ZHIPU_API_KEY`。`POSTGRES_PASSWORD` 不可留空，建议仅使用字母数字，避免数据库 URL 中的特殊字符转义问题。
 2. 在防火墙放行 80/443；数据库、API、MCP 无主机端口映射。
 3. 执行 `docker compose up -d --build`。Caddy 根据域名申请并续期 HTTPS 证书。
 4. 检查 `https://你的域名/api/health` 的 `model_configured` 为 `true`，再按下方演示脚本走一遍全链路。
+
+**暂时没有域名时**，可先保留 `.env` 中的 `SITE_ADDRESS=:80`，在云防火墙放行 TCP 80，并通过 `http://公网IP/api/health` 和 `http://公网IP/` 联调。此阶段是明文 HTTP，不要用作最终面试链接；买好域名并解析到公网 IP 后，将 `SITE_ADDRESS` 改为域名，放行 TCP 443，执行 `docker compose up -d --force-recreate web`，再验证 HTTPS。
 
 当前开发机没有 Docker，Compose 启动尚未实测。公网发布前还应在目标主机验证模型出站连接、域名证书、容器重启与备份。
 推送到 GitHub 后，`.github/workflows/ci.yml` 会在每次 push 和 PR 中构建前端、检查 Compose 配置、验证模型路由边界并运行端到端冒烟测试。

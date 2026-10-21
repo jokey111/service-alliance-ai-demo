@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: service_alliance
       POSTGRES_USER: service_alliance
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-demo-only}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,12 +19,13 @@ services:
       context: .
       dockerfile: infra/Dockerfile.api
     environment:
-      DATABASE_URL: postgresql+psycopg://service_alliance:${POSTGRES_PASSWORD:-local-demo-only}@db:5432/service_alliance
+      DATABASE_URL: postgresql+psycopg://service_alliance:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/service_alliance
       MCP_URL: http://mcp:8011/mcp
       ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
       ZHIPU_BASE_URL: ${ZHIPU_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
       ZHIPU_CHAT_MODEL: ${ZHIPU_CHAT_MODEL:-glm-5.3-flash}
       ZHIPU_MAX_CALLS_PER_MINUTE: ${ZHIPU_MAX_CALLS_PER_MINUTE:-12}
+      ZHIPU_MAX_CALLS_PER_DAY: ${ZHIPU_MAX_CALLS_PER_DAY:-100}
     depends_on:
       db:
         condition: service_healthy
@@ -41,7 +42,7 @@ services:
       dockerfile: infra/Dockerfile.api
     command: ["python", "-m", "apps.business_mcp.server"]
     environment:
-      DATABASE_URL: postgresql+psycopg://service_alliance:${POSTGRES_PASSWORD:-local-demo-only}@db:5432/service_alliance
+      DATABASE_URL: postgresql+psycopg://service_alliance:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/service_alliance
     depends_on:
       api:
         condition: service_healthy
