@@ -136,6 +136,10 @@ def init_db() -> None:
                 User(id="agent", name="李娜", role="agent", department="共享服务中心"),
                 User(id="qc", name="周雯", role="qc", department="服务质量组"),
                 User(id="admin", name="陈建国", role="admin", department="系统管理组"),
+            ])
+            # Persist referenced users before the knowledge lookup triggers autoflush.
+            db.flush()
+            db.add_all([
                 Reimbursement(id="BX-2026-1023", owner_id="user", title="上海出差住宿报销", amount_yuan=1280, status="审批中", current_step="财务复核", next_action="预计由财务复核后进入付款环节"),
                 Reimbursement(id="BX-2026-1008", owner_id="user", title="客户拜访交通报销", amount_yuan=186, status="待补充材料", current_step="票据核验", next_action="请补充电子发票原件"),
             ])
