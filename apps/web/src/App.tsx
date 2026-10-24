@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight, BookOpen, CheckCircle2, CircleHelp, ClipboardCheck,
   ChevronDown, FileText, Headphones, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search,
@@ -181,7 +181,44 @@ function ChatPage({ messages, input, setInput, busy, send, handoff, loadTrace, s
 }) {
   return <div className={'chat-page ' + (messages.length ? 'has-messages' : '')}>
     {messages.length === 0 ? <div className="hero"><div className="hero-orb"><WandSparkles size={31} /></div><div className="hero-kicker">YOUR SERVICE COPILOT</div><h1>你好，今天需要什么帮助？</h1><p>从制度查询到业务进度，让服务过程更清晰、更省心。</p><div className="hero-cards">{quickTasks.map(task => <button key={task.title} onClick={() => task.prompt === '__repair__' ? startRepair() : task.prompt === '__handoff__' ? handoff() : send(task.prompt)} disabled={busy}><task.icon size={22} /><strong>{task.title}</strong><small>{task.description}</small><ArrowRight size={17} className="card-arrow" /></button>)}</div></div> : <div className="message-scroll"><div className="conversation-title"><span className="eyebrow">SERVICE CONVERSATION</span><h2>智能服务对话</h2><p>业务结果来自合成数据。点击“查看轨迹”可核对实际处理步骤。</p></div>{messages.map((message, index) => <div className={'message-row ' + message.role} key={index}><div className="message-avatar">{message.role === 'user' ? '我' : message.role === 'system' ? 'i' : <Sparkles size={17} />}</div><div className="message-body"><div className="message-author">{message.role === 'user' ? '你' : message.role === 'system' ? '系统通知' : '12345 智能服务'}</div><div className="message-text">{message.content}</div>{message.result?.evidence?.items && message.result.status === 'selection_required' && <div className="result-list">{message.result.evidence.items.map(item => <button key={item.id} onClick={() => send('查询这张报销单的详细进度', item.id)}><span><strong>{item.title}</strong><small>{item.id} · ¥{item.amount_yuan}</small></span><span className="result-status">{item.status}</span><ArrowRight size={16} /></button>)}</div>}{message.result?.citations && message.result.citations.length > 0 && <div className="citations">{message.result.citations.map(item => <span key={item.id}><BookOpen size={13} />{item.title} · {item.version}</span>)}</div>}{message.result?.evidence?.passages && <details className="source-passages"><summary>查看引用原文</summary>{message.result.evidence.passages.map(item => <div key={item.id}><strong>{item.title} · {item.id}</strong><p>{item.text}</p></div>)}</details>}{message.trace_id && <button className="trace-link" onClick={() => loadTrace(message.trace_id!)}><LayoutDashboard size={14} /> 查看运行轨迹 <ArrowRight size={13} /></button>}</div></div>)}{busy && <div className="message-row assistant"><div className="message-avatar"><Sparkles size={17} /></div><div className="message-body"><div className="message-author">12345 智能服务</div><div className="typing"><i/><i/><i/> 正在处理你的请求</div></div></div>}</div>}
-    <div className="composer-wrap"><div className="composer"><textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="描述你的问题，例如：帮我查一下报销进度…" rows={2} /><div className="composer-actions"><label className={'model-select ' + (modelConfigured ? 'online' : '')} title={modelConfigured ? '选择本次对话使用的智谱模型' : '模型 API 尚未配置'}><span className="status-dot" /><select aria-label="选择对话模型" value={selectedModel} onChange={e => setSelectedModel(e.target.value as ModelId)} disabled={!modelConfigured || busy}>{modelOptions.map(model => <option key={model} value={model}>{model}</option>)}</select><ChevronDown size={14} /><span className="model-state">{modelConfigured ? '已配置' : '未配置'}</span></label><div><button className="human-btn" onClick={handoff} disabled={busy}><Headphones size={15} /> 转人工</button><button className="send-btn" onClick={() => send()} disabled={busy || !input.trim()}><Send size={17} /></button></div></div></div><p className="composer-hint">演示环境使用合成数据。AI 可能出错，涉及业务办理请核对状态与依据。</p></div>
+    <div className="composer-wrap"><div className="composer"><textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="描述你的问题，例如：帮我查一下报销进度…" rows={2} /><div className="composer-actions"><ModelPicker selectedModel={selectedModel} setSelectedModel={setSelectedModel} modelOptions={modelOptions} modelConfigured={modelConfigured} busy={busy} /><div><button className="human-btn" onClick={handoff} disabled={busy}><Headphones size={15} /> 转人工</button><button className="send-btn" onClick={() => send()} disabled={busy || !input.trim()}><Send size={17} /></button></div></div></div><p className="composer-hint">演示环境使用合成数据。AI 可能出错，涉及业务办理请核对状态与依据。</p></div>
+  </div>;
+}
+
+function ModelPicker({ selectedModel, setSelectedModel, modelOptions, modelConfigured, busy }: {
+  selectedModel: ModelId; setSelectedModel: (model: ModelId) => void;
+  modelOptions: ModelId[]; modelConfigured: boolean; busy: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOutside(event: PointerEvent) {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  return <div className="model-picker" ref={pickerRef}>
+    <button className={'model-select ' + (modelConfigured ? 'online' : '')} type="button" aria-label={`选择对话模型，当前 ${selectedModel}`} aria-haspopup="listbox" aria-expanded={open} aria-controls="chat-model-options" onClick={() => setOpen(value => !value)} disabled={busy}>
+      <span className="status-dot" /><span className="model-name">{selectedModel}</span><ChevronDown size={14} className={open ? 'expanded' : ''} /><span className="model-state">{modelConfigured ? '已配置' : '未配置'}</span>
+    </button>
+    {open && <div className="model-menu" id="chat-model-options" role="listbox" aria-label="可选对话模型">
+      <div className="model-menu-title">选择对话模型</div>
+      {modelOptions.map(model => <button key={model} type="button" role="option" aria-selected={selectedModel === model} className={selectedModel === model ? 'selected' : ''} onClick={() => { setSelectedModel(model); setOpen(false); }}>
+        <span>{model}</span>{selectedModel === model && <CheckCircle2 size={15} />}
+      </button>)}
+      {!modelConfigured && <p>模型 API 尚未配置，当前仅展示可选项。</p>}
+    </div>}
   </div>;
 }
 
