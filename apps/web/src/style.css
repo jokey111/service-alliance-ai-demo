@@ -65,3 +65,13 @@
 .human-btn:hover{background:#345148;border-color:#65aa8d;color:#fff}
 .human-btn:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:760px){.brand-row{padding:0;justify-content:center}.brand-row .brand{display:none}.service-menu-panel{left:8px;top:60px;width:min(280px,calc(100vw - 16px))}}
+
+.model-select{height:33px;display:inline-flex;align-items:center;gap:6px;padding:0 9px;border:1px solid #3b4b47;border-radius:8px;background:#26312f;color:#bacbc5;cursor:pointer}
+.model-select.online{border-color:#37694f;background:#1c392d;color:#91e4b8}
+.model-select:focus-within{outline:2px solid #54bc92;outline-offset:2px}
+.model-select select{max-width:130px;border:0;outline:0;background:transparent;color:inherit;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;appearance:none}
+.model-select select:disabled{cursor:not-allowed;opacity:.7}
+.model-select option{background:#202a27;color:#e5f4ea}
+.model-select svg{pointer-events:none;flex:none}
+.model-state{font-size:10px;white-space:nowrap;border-left:1px solid #477459;padding-left:7px}
+@media(max-width:480px){.composer-actions{flex-wrap:wrap;row-gap:8px}.model-select select{max-width:112px}.model-select{padding:0 7px}}

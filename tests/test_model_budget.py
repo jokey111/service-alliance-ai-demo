@@ -4,12 +4,27 @@ from __future__ import annotations
 import asyncio
 import unittest
 from collections import deque
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from apps.api import glm
 
 
 class ModelBudgetTest(unittest.TestCase):
+    def test_selected_model_reaches_upstream_request(self) -> None:
+        response = MagicMock()
+        response.json.return_value = {"choices": [{"message": {"content": "OK"}}]}
+        with (
+            patch.object(glm, "API_KEY", "test-only-key"),
+            patch.object(glm, "CALL_TIMES", deque()),
+            patch.object(glm, "DAY_CALL_TIMES", deque()),
+            patch.object(glm.httpx, "AsyncClient") as client,
+        ):
+            post = AsyncMock(return_value=response)
+            client.return_value.__aenter__.return_value.post = post
+            result = asyncio.run(glm.completion([{"role": "user", "content": "test"}], model="glm-5.3"))
+            self.assertEqual(post.await_args.kwargs["json"]["model"], "glm-5.3")
+        self.assertEqual(result, "OK")
+
     def test_daily_limit_blocks_upstream_request(self) -> None:
         with (
             patch.object(glm, "API_KEY", "test-only-key"),

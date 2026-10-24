@@ -11,6 +11,7 @@ import httpx
 API_KEY = os.getenv("ZHIPU_API_KEY", "")
 BASE_URL = os.getenv("ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4").rstrip("/")
 CHAT_MODEL = os.getenv("ZHIPU_CHAT_MODEL", "glm-5.3-flash")
+CHAT_MODELS = ("glm-5.3-flash", "glm-5.3-flashx", "glm-5.3")
 MAX_CALLS_PER_MINUTE = max(1, int(os.getenv("ZHIPU_MAX_CALLS_PER_MINUTE", "12")))
 MAX_CALLS_PER_DAY = max(1, int(os.getenv("ZHIPU_MAX_CALLS_PER_DAY", "100")))
 CALL_TIMES: deque[float] = deque()
@@ -21,7 +22,7 @@ def configured() -> bool:
     return bool(API_KEY)
 
 
-async def completion(messages: list[dict], *, max_tokens: int = 600) -> str | None:
+async def completion(messages: list[dict], *, max_tokens: int = 600, model: str | None = None) -> str | None:
     """Generate short user-facing text. Never infer business facts absent from messages."""
     if not configured():
         return None
@@ -35,7 +36,7 @@ async def completion(messages: list[dict], *, max_tokens: int = 600) -> str | No
     CALL_TIMES.append(current)
     DAY_CALL_TIMES.append(current)
     payload = {
-        "model": CHAT_MODEL,
+        "model": model or CHAT_MODEL,
         "messages": messages,
         "thinking": {"type": "enabled"},
         "reasoning_effort": "low",

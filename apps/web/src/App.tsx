@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowRight, BookOpen, CheckCircle2, CircleHelp, ClipboardCheck,
-  FileText, Headphones, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search,
+  ChevronDown, FileText, Headphones, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search,
   Send, ShieldCheck, Sparkles, Ticket as TicketIcon, WandSparkles, X,
 } from 'lucide-react';
 
 type Role = 'employee' | 'agent' | 'qc' | 'admin';
 type View = 'chat' | 'repair' | 'agent' | 'tickets' | 'qc' | 'knowledge';
+type ModelId = 'glm-5.3-flash' | 'glm-5.3-flashx' | 'glm-5.3';
 type User = { id: string; name: string; role: Role; department: string };
 type Reimbursement = { id: string; title: string; amount_yuan: number; status: string };
 type ChatResult = { conversation_id: string; trace_id: string; status: string; answer: string;
@@ -30,6 +31,7 @@ const quickTasks = [
   { title: '提交 IT 报修', description: '填写故障并确认后提交', prompt: '__repair__', icon: CircleHelp },
   { title: '联系人工坐席', description: '带着当前上下文交接', prompt: '__handoff__', icon: Headphones },
 ];
+const defaultModels: ModelId[] = ['glm-5.3-flash', 'glm-5.3-flashx', 'glm-5.3'];
 
 async function api<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -54,11 +56,12 @@ function App() {
   const [trace, setTrace] = useState<{ id: string; steps: Record<string, unknown>[] } | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [reports, setReports] = useState<QCReport[]>([]);
-  const [health, setHealth] = useState<{ model_configured: boolean; model?: string } | null>(null);
+  const [health, setHealth] = useState<{ model_configured: boolean; model?: string; models?: ModelId[] } | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelId>('glm-5.3-flash');
   const [serviceMenuOpen, setServiceMenuOpen] = useState(false);
 
   useEffect(() => {
-    api<{ model_configured: boolean; model?: string }>('/health', '').then(setHealth).catch(() => {});
+    api<{ model_configured: boolean; model?: string; models?: ModelId[] }>('/health', '').then(setHealth).catch(() => {});
   }, []);
   useEffect(() => {
     if (!token) return;
@@ -100,7 +103,7 @@ function App() {
     setBusy(true); setError(''); setInput('');
     setMessages(previous => [...previous, { role: 'user', content: clean }]);
     try {
-      const result = await api<ChatResult>('/chat', token, { method: 'POST', body: JSON.stringify({ text: clean, conversation_id: conversationId, reimbursement_id: reimbursementId }) });
+      const result = await api<ChatResult>('/chat', token, { method: 'POST', body: JSON.stringify({ text: clean, conversation_id: conversationId, reimbursement_id: reimbursementId, model: selectedModel }) });
       setConversationId(result.conversation_id);
       setMessages(previous => [...previous, { role: 'assistant', content: result.answer, trace_id: result.trace_id, result }]);
     } catch (e) { setError((e as Error).message); }
@@ -153,9 +156,9 @@ function App() {
     </aside>
     {serviceMenuOpen && <><button className="service-menu-backdrop" onClick={() => setServiceMenuOpen(false)} aria-label="关闭服务菜单" /><nav id="service-menu" className="service-menu-panel" aria-label="服务菜单"><div className="service-menu-heading"><strong>服务</strong><button onClick={() => setServiceMenuOpen(false)} aria-label="关闭服务菜单"><X size={17} /></button></div><div className="service-menu-items">{available.map(item => <button key={item.id} className={view === item.id ? 'active' : ''} onClick={() => { setView(item.id); setError(''); setServiceMenuOpen(false); }}><item.icon size={18} />{item.label}</button>)}</div><div className="service-menu-reserve" /></nav></>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb">服务 <span>/</span> {available.find(item => item.id === view)?.label}</div><div className="top-actions"><span className={'model-pill ' + (health?.model_configured ? 'online' : '')}><span className="status-dot" />{health?.model_configured ? `${health.model} 已配置` : '模型待配置 · 工具链可演示'}</span><span className="top-avatar">{user.name[0]}</span></div></header>
+      <header className="topbar"><div className="breadcrumb">服务 <span>/</span> {available.find(item => item.id === view)?.label}</div><div className="top-actions"><span className="top-avatar">{user.name[0]}</span></div></header>
       {error && <div className="error-banner">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
-      {view === 'chat' && <ChatPage messages={messages} input={input} setInput={setInput} busy={busy} send={send} handoff={handoff} loadTrace={loadTrace} startRepair={() => setView('repair')} />}
+      {view === 'chat' && <ChatPage messages={messages} input={input} setInput={setInput} busy={busy} send={send} handoff={handoff} loadTrace={loadTrace} startRepair={() => setView('repair')} selectedModel={selectedModel} setSelectedModel={setSelectedModel} modelOptions={health?.models ?? defaultModels} modelConfigured={health?.model_configured ?? false} />}
       {view === 'repair' && <RepairPage token={token} loadTrace={loadTrace} />}
       {view === 'agent' && <AgentPage tickets={tickets} user={user} updateTicket={updateTicket} />}
       {view === 'tickets' && <TicketPage tickets={tickets} user={user} updateTicket={updateTicket} />}
@@ -170,14 +173,15 @@ function Login({ onLogin, busy, error }: { onLogin: (id: string) => void; busy: 
   return <div className="login-page"><div className="login-inner"><div className="login-brand"><div className="brand-mark"><Sparkles size={22} /></div>12345客服联盟</div><div className="login-copy"><span className="eyebrow">INTERVIEW DEMO · SYNTHETIC DATA</span><h1>让每一次服务<br/><em>都有答案，也有依据。</em></h1><p>从员工自助、坐席协同到质检复盘，体验一条完整的智能服务链路。</p></div><div className="login-panel"><div className="panel-title"><span>选择演示身份</span><span>01 / 04</span></div><div className="role-grid">{profiles.map(profile => <button key={profile.id} onClick={() => onLogin(profile.id)} disabled={busy}><div className={'role-icon ' + profile.color}>{profile.name[0]}</div><span><strong>{profile.label}</strong><small>{profile.name} · 进入工作台</small></span><ArrowRight size={17} /></button>)}</div>{error && <p className="login-error">{error}</p>}<div className="login-note"><ShieldCheck size={16} /> 所有账号和业务记录均为合成演示数据</div></div><div className="login-footer">FDE PORTFOLIO PROJECT <span>© 2026 12345客服联盟</span></div></div></div>;
 }
 
-function ChatPage({ messages, input, setInput, busy, send, handoff, loadTrace, startRepair }: {
+function ChatPage({ messages, input, setInput, busy, send, handoff, loadTrace, startRepair, selectedModel, setSelectedModel, modelOptions, modelConfigured }: {
   messages: Message[]; input: string; setInput: (value: string) => void; busy: boolean;
   send: (text?: string, reimbursementId?: string) => void; handoff: () => void;
   loadTrace: (id: string) => void; startRepair: () => void;
+  selectedModel: ModelId; setSelectedModel: (model: ModelId) => void; modelOptions: ModelId[]; modelConfigured: boolean;
 }) {
   return <div className={'chat-page ' + (messages.length ? 'has-messages' : '')}>
     {messages.length === 0 ? <div className="hero"><div className="hero-orb"><WandSparkles size={31} /></div><div className="hero-kicker">YOUR SERVICE COPILOT</div><h1>你好，今天需要什么帮助？</h1><p>从制度查询到业务进度，让服务过程更清晰、更省心。</p><div className="hero-cards">{quickTasks.map(task => <button key={task.title} onClick={() => task.prompt === '__repair__' ? startRepair() : task.prompt === '__handoff__' ? handoff() : send(task.prompt)} disabled={busy}><task.icon size={22} /><strong>{task.title}</strong><small>{task.description}</small><ArrowRight size={17} className="card-arrow" /></button>)}</div></div> : <div className="message-scroll"><div className="conversation-title"><span className="eyebrow">SERVICE CONVERSATION</span><h2>智能服务对话</h2><p>业务结果来自合成数据。点击“查看轨迹”可核对实际处理步骤。</p></div>{messages.map((message, index) => <div className={'message-row ' + message.role} key={index}><div className="message-avatar">{message.role === 'user' ? '我' : message.role === 'system' ? 'i' : <Sparkles size={17} />}</div><div className="message-body"><div className="message-author">{message.role === 'user' ? '你' : message.role === 'system' ? '系统通知' : '12345 智能服务'}</div><div className="message-text">{message.content}</div>{message.result?.evidence?.items && message.result.status === 'selection_required' && <div className="result-list">{message.result.evidence.items.map(item => <button key={item.id} onClick={() => send('查询这张报销单的详细进度', item.id)}><span><strong>{item.title}</strong><small>{item.id} · ¥{item.amount_yuan}</small></span><span className="result-status">{item.status}</span><ArrowRight size={16} /></button>)}</div>}{message.result?.citations && message.result.citations.length > 0 && <div className="citations">{message.result.citations.map(item => <span key={item.id}><BookOpen size={13} />{item.title} · {item.version}</span>)}</div>}{message.result?.evidence?.passages && <details className="source-passages"><summary>查看引用原文</summary>{message.result.evidence.passages.map(item => <div key={item.id}><strong>{item.title} · {item.id}</strong><p>{item.text}</p></div>)}</details>}{message.trace_id && <button className="trace-link" onClick={() => loadTrace(message.trace_id!)}><LayoutDashboard size={14} /> 查看运行轨迹 <ArrowRight size={13} /></button>}</div></div>)}{busy && <div className="message-row assistant"><div className="message-avatar"><Sparkles size={17} /></div><div className="message-body"><div className="message-author">12345 智能服务</div><div className="typing"><i/><i/><i/> 正在处理你的请求</div></div></div>}</div>}
-    <div className="composer-wrap"><div className="composer"><textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="描述你的问题，例如：帮我查一下报销进度…" rows={2} /><div className="composer-actions"><span><Sparkles size={15} /> 智能服务</span><div><button className="human-btn" onClick={handoff} disabled={busy}><Headphones size={15} /> 转人工</button><button className="send-btn" onClick={() => send()} disabled={busy || !input.trim()}><Send size={17} /></button></div></div></div><p className="composer-hint">演示环境使用合成数据。AI 可能出错，涉及业务办理请核对状态与依据。</p></div>
+    <div className="composer-wrap"><div className="composer"><textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="描述你的问题，例如：帮我查一下报销进度…" rows={2} /><div className="composer-actions"><label className={'model-select ' + (modelConfigured ? 'online' : '')} title={modelConfigured ? '选择本次对话使用的智谱模型' : '模型 API 尚未配置'}><span className="status-dot" /><select aria-label="选择对话模型" value={selectedModel} onChange={e => setSelectedModel(e.target.value as ModelId)} disabled={!modelConfigured || busy}>{modelOptions.map(model => <option key={model} value={model}>{model}</option>)}</select><ChevronDown size={14} /><span className="model-state">{modelConfigured ? '已配置' : '未配置'}</span></label><div><button className="human-btn" onClick={handoff} disabled={busy}><Headphones size={15} /> 转人工</button><button className="send-btn" onClick={() => send()} disabled={busy || !input.trim()}><Send size={17} /></button></div></div></div><p className="composer-hint">演示环境使用合成数据。AI 可能出错，涉及业务办理请核对状态与依据。</p></div>
   </div>;
 }
 
