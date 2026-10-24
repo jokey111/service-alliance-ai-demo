@@ -44,3 +44,24 @@
 .source-passages div { margin-top: 12px; border-top: 1px solid #314139; padding-top: 10px; }
 .source-passages p { margin: 6px 0; line-height: 1.65; }
 @media (max-width: 900px) { .eval-row { grid-template-columns: 54px 1fr; } }
+
+.brand-row{display:flex;align-items:center;gap:8px;padding:0 4px}
+.brand-row .brand{padding:0;min-width:0;gap:8px}
+.brand-row .brand strong{font-size:14px;white-space:nowrap}
+.brand-row .brand small{letter-spacing:.06em}
+.brand-row .brand-mark{flex:none}
+.service-menu-trigger{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:#d5e5df}
+.service-menu-trigger:hover,.service-menu-trigger:focus-visible{background:#273b35;color:#a5f0d0}
+.service-menu-backdrop{position:fixed;inset:0;z-index:40;border:0;background:#0008;cursor:default}
+.service-menu-panel{position:fixed;top:68px;left:14px;z-index:41;width:252px;min-height:360px;max-height:calc(100vh - 84px);overflow:auto;background:#1b2225;border:1px solid #3a4946;border-radius:12px;box-shadow:0 20px 60px #000a;padding:12px;display:flex;flex-direction:column}
+.service-menu-heading{display:flex;align-items:center;justify-content:space-between;color:#f0f8f4;font-size:14px;padding:4px 8px 12px}
+.service-menu-heading button{display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:#9aadab}
+.service-menu-heading button:hover{background:#2b3937;color:#fff}
+.service-menu-items{display:flex;flex-direction:column;gap:4px}
+.service-menu-items button{height:40px;display:flex;align-items:center;gap:11px;width:100%;padding:0 12px;text-align:left;border:0;border-radius:8px;background:transparent;color:#b5c5c1;font-size:13px}
+.service-menu-items button:hover{background:#273632;color:#fff}
+.service-menu-items button.active{background:#244037;color:#a9efcf;font-weight:700}
+.service-menu-reserve{flex:1;min-height:100px;margin-top:14px;border-top:1px solid #303c3b}
+.human-btn:hover{background:#345148;border-color:#65aa8d;color:#fff}
+.human-btn:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:760px){.brand-row{padding:0;justify-content:center}.brand-row .brand{display:none}.service-menu-panel{left:8px;top:60px;width:min(280px,calc(100vw - 16px))}}

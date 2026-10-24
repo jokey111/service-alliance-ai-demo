@@ -75,7 +75,8 @@ def stamp(value: datetime | None) -> str | None:
 
 
 def ticket_dict(item: Ticket) -> dict:
-    return {"id": item.id, "owner_id": item.owner_id, "title": item.title, "description": item.description,
+    return {"id": item.id, "owner_id": item.owner_id, "conversation_id": item.conversation_id,
+            "title": item.title, "description": item.description,
             "category": item.category, "status": item.status, "assignee_id": item.assignee_id,
             "resolution": item.resolution, "created_at": stamp(item.created_at), "updated_at": stamp(item.updated_at)}
 
@@ -297,7 +298,7 @@ def trace(trace_id: str, user: User = Depends(actor)) -> dict:
 
 
 class HandoffRequest(BaseModel):
-    conversation_id: str
+    conversation_id: str | None = None
     reason: str = Field(default="员工请求人工服务", max_length=300)
 
 
@@ -305,11 +306,21 @@ class HandoffRequest(BaseModel):
 def handoff(body: HandoffRequest, user: User = Depends(actor)) -> dict:
     require(user, "employee", "agent", "admin")
     with SessionLocal() as db:
-        conv = db.get(Conversation, body.conversation_id)
-        if not conv or conv.owner_id != user.id:
-            raise HTTPException(status_code=404, detail="会话不存在")
+        if body.conversation_id:
+            conv = db.get(Conversation, body.conversation_id)
+            if not conv or conv.owner_id != user.id:
+                raise HTTPException(status_code=404, detail="会话不存在")
+            existing = db.scalars(select(Ticket).where(
+                Ticket.conversation_id == conv.id, Ticket.owner_id == user.id
+            ).order_by(Ticket.created_at.desc())).first()
+            if existing:
+                return ticket_dict(existing)
+        else:
+            conv = Conversation(id=uuid4().hex, owner_id=user.id, title="人工服务请求")
+            db.add(conv)
+            db.flush()
         messages = sorted(conv.messages, key=lambda item: item.created_at)
-        summary = "\n".join(f"{m.role}: {redact(m.content[:180])}" for m in messages[-8:])
+        summary = "\n".join(f"{m.role}: {redact(m.content[:180])}" for m in messages[-8:]) or "员工直接请求人工服务"
         item = Ticket(id=f"TK-{now().strftime('%Y%m%d')}-{uuid4().hex[:5].upper()}", owner_id=user.id,
                       conversation_id=conv.id, title=conv.title, description=f"转接原因：{body.reason}\n会话摘要：\n{summary}", category="报销服务")
         conv.status = "handoff"

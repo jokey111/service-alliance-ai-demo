@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowRight, BookOpen, CheckCircle2, CircleHelp, ClipboardCheck,
-  FileText, Headphones, LayoutDashboard, LogOut, MessageCircle, Plus, Search,
+  FileText, Headphones, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search,
   Send, ShieldCheck, Sparkles, Ticket as TicketIcon, WandSparkles, X,
 } from 'lucide-react';
 
@@ -13,7 +13,7 @@ type ChatResult = { conversation_id: string; trace_id: string; status: string; a
   evidence?: { status?: string; items?: Reimbursement[]; item?: Reimbursement;
     passages?: { id: string; title: string; text: string }[] }; citations?: { id: string; title: string; version: string }[]; model_used: boolean };
 type Message = { role: string; content: string; trace_id?: string; result?: ChatResult };
-type Ticket = { id: string; owner_id: string; title: string; description: string; category: string;
+type Ticket = { id: string; owner_id: string; conversation_id?: string | null; title: string; description: string; category: string;
   status: string; resolution?: string; created_at: string };
 type QCReport = { id: string; ticket_id: string; status: string; rule_version: string;
   findings: { dimension: string; result: string; evidence: string; rule: string }[]; review_note?: string };
@@ -28,7 +28,7 @@ const quickTasks = [
   { title: '查询报销进度', description: '查看本人单据的最新节点', prompt: '帮我查一下我的报销进度', icon: Search },
   { title: '了解报销流程', description: '材料、步骤与处理说明', prompt: '报销怎么弄？需要哪些材料？', icon: FileText },
   { title: '提交 IT 报修', description: '填写故障并确认后提交', prompt: '__repair__', icon: CircleHelp },
-  { title: '联系人工坐席', description: '带着当前上下文交接', prompt: '我需要转人工', icon: Headphones },
+  { title: '联系人工坐席', description: '带着当前上下文交接', prompt: '__handoff__', icon: Headphones },
 ];
 
 async function api<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
@@ -55,6 +55,7 @@ function App() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [reports, setReports] = useState<QCReport[]>([]);
   const [health, setHealth] = useState<{ model_configured: boolean; model?: string } | null>(null);
+  const [serviceMenuOpen, setServiceMenuOpen] = useState(false);
 
   useEffect(() => {
     api<{ model_configured: boolean; model?: string }>('/health', '').then(setHealth).catch(() => {});
@@ -85,7 +86,7 @@ function App() {
   }
   function logout() {
     localStorage.removeItem('demo_token'); setToken(''); setUser(null); setConversationId(null);
-    setMessages([]); setTrace(null); setView('chat');
+    setMessages([]); setTrace(null); setView('chat'); setServiceMenuOpen(false);
   }
   function startNew() { setConversationId(null); setMessages([]); setView('chat'); setError(''); }
   async function openConversation(id: string) {
@@ -106,12 +107,13 @@ function App() {
     finally { setBusy(false); }
   }
   async function handoff() {
-    if (!conversationId) return;
+    if (busy) return;
     setBusy(true); setError('');
     try {
       const result = await api<Ticket>('/handoffs', token, { method: 'POST', body: JSON.stringify({ conversation_id: conversationId }) });
+      if (result.conversation_id) setConversationId(result.conversation_id);
       setMessages(previous => [...previous, { role: 'system', content: `已创建人工服务工单 ${result.id}，坐席可查看本次会话摘要。` }]);
-      setView('tickets'); setTickets(previous => [result, ...previous]);
+      setView('tickets'); setTickets(previous => previous.some(item => item.id === result.id) ? previous : [result, ...previous]);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -143,18 +145,17 @@ function App() {
   ];
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Sparkles size={19} /></div><div><strong>12345客服联盟</strong><small>智能服务工作台</small></div></div>
+      <div className="brand-row"><button className="service-menu-trigger" onClick={() => setServiceMenuOpen(true)} aria-label="打开服务菜单" aria-expanded={serviceMenuOpen} aria-controls="service-menu"><Menu size={21} /></button><div className="brand"><div className="brand-mark"><Sparkles size={19} /></div><div><strong>12345客服联盟</strong><small>智能服务工作台</small></div></div></div>
       <button className="new-task" onClick={startNew}><Plus size={17} /> 新建对话 <span>⌘ K</span></button>
-      <div className="side-label">工作空间</div>
-      <nav className="nav-list">{available.map(item => <button key={item.id} className={view === item.id ? 'active' : ''} onClick={() => { setView(item.id); setError(''); }}><item.icon size={18} />{item.label}</button>)}</nav>
       <div className="side-label recent-label">最近对话</div>
       <div className="recent-list">{conversations.slice(0, 5).map(item => <button key={item.id} onClick={() => openConversation(item.id)}><MessageCircle size={15} /><span>{item.title}</span></button>)}{conversations.length === 0 && <p>暂无历史对话</p>}</div>
       <div className="sidebar-bottom"><div className="synthetic-tag"><ShieldCheck size={15} /> 合成数据演示环境</div><button className="profile" onClick={logout}><span className="avatar">{user.name[0]}</span><span><strong>{user.name}</strong><small>{profiles.find(p => p.role === user.role)?.label}</small></span><LogOut size={16} /></button></div>
     </aside>
+    {serviceMenuOpen && <><button className="service-menu-backdrop" onClick={() => setServiceMenuOpen(false)} aria-label="关闭服务菜单" /><nav id="service-menu" className="service-menu-panel" aria-label="服务菜单"><div className="service-menu-heading"><strong>服务</strong><button onClick={() => setServiceMenuOpen(false)} aria-label="关闭服务菜单"><X size={17} /></button></div><div className="service-menu-items">{available.map(item => <button key={item.id} className={view === item.id ? 'active' : ''} onClick={() => { setView(item.id); setError(''); setServiceMenuOpen(false); }}><item.icon size={18} />{item.label}</button>)}</div><div className="service-menu-reserve" /></nav></>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb">工作空间 <span>/</span> {available.find(item => item.id === view)?.label}</div><div className="top-actions"><span className={'model-pill ' + (health?.model_configured ? 'online' : '')}><span className="status-dot" />{health?.model_configured ? `${health.model} 已配置` : '模型待配置 · 工具链可演示'}</span><span className="top-avatar">{user.name[0]}</span></div></header>
+      <header className="topbar"><div className="breadcrumb">服务 <span>/</span> {available.find(item => item.id === view)?.label}</div><div className="top-actions"><span className={'model-pill ' + (health?.model_configured ? 'online' : '')}><span className="status-dot" />{health?.model_configured ? `${health.model} 已配置` : '模型待配置 · 工具链可演示'}</span><span className="top-avatar">{user.name[0]}</span></div></header>
       {error && <div className="error-banner">{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
-      {view === 'chat' && <ChatPage messages={messages} input={input} setInput={setInput} busy={busy} send={send} handoff={handoff} conversationId={conversationId} loadTrace={loadTrace} startRepair={() => setView('repair')} />}
+      {view === 'chat' && <ChatPage messages={messages} input={input} setInput={setInput} busy={busy} send={send} handoff={handoff} loadTrace={loadTrace} startRepair={() => setView('repair')} />}
       {view === 'repair' && <RepairPage token={token} loadTrace={loadTrace} />}
       {view === 'agent' && <AgentPage tickets={tickets} user={user} updateTicket={updateTicket} />}
       {view === 'tickets' && <TicketPage tickets={tickets} user={user} updateTicket={updateTicket} />}
@@ -169,14 +170,14 @@ function Login({ onLogin, busy, error }: { onLogin: (id: string) => void; busy: 
   return <div className="login-page"><div className="login-inner"><div className="login-brand"><div className="brand-mark"><Sparkles size={22} /></div>12345客服联盟</div><div className="login-copy"><span className="eyebrow">INTERVIEW DEMO · SYNTHETIC DATA</span><h1>让每一次服务<br/><em>都有答案，也有依据。</em></h1><p>从员工自助、坐席协同到质检复盘，体验一条完整的智能服务链路。</p></div><div className="login-panel"><div className="panel-title"><span>选择演示身份</span><span>01 / 04</span></div><div className="role-grid">{profiles.map(profile => <button key={profile.id} onClick={() => onLogin(profile.id)} disabled={busy}><div className={'role-icon ' + profile.color}>{profile.name[0]}</div><span><strong>{profile.label}</strong><small>{profile.name} · 进入工作台</small></span><ArrowRight size={17} /></button>)}</div>{error && <p className="login-error">{error}</p>}<div className="login-note"><ShieldCheck size={16} /> 所有账号和业务记录均为合成演示数据</div></div><div className="login-footer">FDE PORTFOLIO PROJECT <span>© 2026 12345客服联盟</span></div></div></div>;
 }
 
-function ChatPage({ messages, input, setInput, busy, send, handoff, conversationId, loadTrace, startRepair }: {
+function ChatPage({ messages, input, setInput, busy, send, handoff, loadTrace, startRepair }: {
   messages: Message[]; input: string; setInput: (value: string) => void; busy: boolean;
-  send: (text?: string, reimbursementId?: string) => void; handoff: () => void; conversationId: string | null;
+  send: (text?: string, reimbursementId?: string) => void; handoff: () => void;
   loadTrace: (id: string) => void; startRepair: () => void;
 }) {
   return <div className={'chat-page ' + (messages.length ? 'has-messages' : '')}>
-    {messages.length === 0 ? <div className="hero"><div className="hero-orb"><WandSparkles size={31} /></div><div className="hero-kicker">YOUR SERVICE COPILOT</div><h1>你好，今天需要什么帮助？</h1><p>从制度查询到业务进度，让服务过程更清晰、更省心。</p><div className="hero-cards">{quickTasks.map(task => <button key={task.title} onClick={() => task.prompt === '__repair__' ? startRepair() : send(task.prompt)}><task.icon size={22} /><strong>{task.title}</strong><small>{task.description}</small><ArrowRight size={17} className="card-arrow" /></button>)}</div></div> : <div className="message-scroll"><div className="conversation-title"><span className="eyebrow">SERVICE CONVERSATION</span><h2>智能服务对话</h2><p>业务结果来自合成数据。点击“查看轨迹”可核对实际处理步骤。</p></div>{messages.map((message, index) => <div className={'message-row ' + message.role} key={index}><div className="message-avatar">{message.role === 'user' ? '我' : message.role === 'system' ? 'i' : <Sparkles size={17} />}</div><div className="message-body"><div className="message-author">{message.role === 'user' ? '你' : message.role === 'system' ? '系统通知' : '12345 智能服务'}</div><div className="message-text">{message.content}</div>{message.result?.evidence?.items && message.result.status === 'selection_required' && <div className="result-list">{message.result.evidence.items.map(item => <button key={item.id} onClick={() => send('查询这张报销单的详细进度', item.id)}><span><strong>{item.title}</strong><small>{item.id} · ¥{item.amount_yuan}</small></span><span className="result-status">{item.status}</span><ArrowRight size={16} /></button>)}</div>}{message.result?.citations && message.result.citations.length > 0 && <div className="citations">{message.result.citations.map(item => <span key={item.id}><BookOpen size={13} />{item.title} · {item.version}</span>)}</div>}{message.result?.evidence?.passages && <details className="source-passages"><summary>查看引用原文</summary>{message.result.evidence.passages.map(item => <div key={item.id}><strong>{item.title} · {item.id}</strong><p>{item.text}</p></div>)}</details>}{message.trace_id && <button className="trace-link" onClick={() => loadTrace(message.trace_id!)}><LayoutDashboard size={14} /> 查看运行轨迹 <ArrowRight size={13} /></button>}</div></div>)}{busy && <div className="message-row assistant"><div className="message-avatar"><Sparkles size={17} /></div><div className="message-body"><div className="message-author">12345 智能服务</div><div className="typing"><i/><i/><i/> 正在处理你的请求</div></div></div>}</div>}
-    <div className="composer-wrap"><div className="composer"><textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="描述你的问题，例如：帮我查一下报销进度…" rows={2} /><div className="composer-actions"><span><Sparkles size={15} /> 智能服务</span><div>{conversationId && <button className="human-btn" onClick={handoff} disabled={busy}><Headphones size={15} /> 转人工</button>}<button className="send-btn" onClick={() => send()} disabled={busy || !input.trim()}><Send size={17} /></button></div></div></div><p className="composer-hint">演示环境使用合成数据。AI 可能出错，涉及业务办理请核对状态与依据。</p></div>
+    {messages.length === 0 ? <div className="hero"><div className="hero-orb"><WandSparkles size={31} /></div><div className="hero-kicker">YOUR SERVICE COPILOT</div><h1>你好，今天需要什么帮助？</h1><p>从制度查询到业务进度，让服务过程更清晰、更省心。</p><div className="hero-cards">{quickTasks.map(task => <button key={task.title} onClick={() => task.prompt === '__repair__' ? startRepair() : task.prompt === '__handoff__' ? handoff() : send(task.prompt)} disabled={busy}><task.icon size={22} /><strong>{task.title}</strong><small>{task.description}</small><ArrowRight size={17} className="card-arrow" /></button>)}</div></div> : <div className="message-scroll"><div className="conversation-title"><span className="eyebrow">SERVICE CONVERSATION</span><h2>智能服务对话</h2><p>业务结果来自合成数据。点击“查看轨迹”可核对实际处理步骤。</p></div>{messages.map((message, index) => <div className={'message-row ' + message.role} key={index}><div className="message-avatar">{message.role === 'user' ? '我' : message.role === 'system' ? 'i' : <Sparkles size={17} />}</div><div className="message-body"><div className="message-author">{message.role === 'user' ? '你' : message.role === 'system' ? '系统通知' : '12345 智能服务'}</div><div className="message-text">{message.content}</div>{message.result?.evidence?.items && message.result.status === 'selection_required' && <div className="result-list">{message.result.evidence.items.map(item => <button key={item.id} onClick={() => send('查询这张报销单的详细进度', item.id)}><span><strong>{item.title}</strong><small>{item.id} · ¥{item.amount_yuan}</small></span><span className="result-status">{item.status}</span><ArrowRight size={16} /></button>)}</div>}{message.result?.citations && message.result.citations.length > 0 && <div className="citations">{message.result.citations.map(item => <span key={item.id}><BookOpen size={13} />{item.title} · {item.version}</span>)}</div>}{message.result?.evidence?.passages && <details className="source-passages"><summary>查看引用原文</summary>{message.result.evidence.passages.map(item => <div key={item.id}><strong>{item.title} · {item.id}</strong><p>{item.text}</p></div>)}</details>}{message.trace_id && <button className="trace-link" onClick={() => loadTrace(message.trace_id!)}><LayoutDashboard size={14} /> 查看运行轨迹 <ArrowRight size={13} /></button>}</div></div>)}{busy && <div className="message-row assistant"><div className="message-avatar"><Sparkles size={17} /></div><div className="message-body"><div className="message-author">12345 智能服务</div><div className="typing"><i/><i/><i/> 正在处理你的请求</div></div></div>}</div>}
+    <div className="composer-wrap"><div className="composer"><textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="描述你的问题，例如：帮我查一下报销进度…" rows={2} /><div className="composer-actions"><span><Sparkles size={15} /> 智能服务</span><div><button className="human-btn" onClick={handoff} disabled={busy}><Headphones size={15} /> 转人工</button><button className="send-btn" onClick={() => send()} disabled={busy || !input.trim()}><Send size={17} /></button></div></div></div><p className="composer-hint">演示环境使用合成数据。AI 可能出错，涉及业务办理请核对状态与依据。</p></div>
   </div>;
 }
 
